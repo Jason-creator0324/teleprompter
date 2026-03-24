@@ -1,0 +1,11 @@
+packages:
+  "zustand": "State management for teleprompter settings and text across views"
+  "framer-motion": "Smooth animations for UI elements and control overlays"
+  "clsx": "Utility for constructing className strings conditionally"
+  "tailwind-merge": "Utility to safely merge Tailwind CSS classes"
+
+images: []
+
+notes:
+  - App is fully client-side. No backend API required.
+  - Zustand is used with local storage persistence to remember user settings and script between sessions.

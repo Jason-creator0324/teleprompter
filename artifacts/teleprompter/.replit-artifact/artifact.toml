@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "提词器 Teleprompter"
+version = "1.0.0"
+id = "artifacts/teleprompter"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22553
+
+[services.development]
+run = "pnpm --filter @workspace/teleprompter run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/teleprompter", "run", "build" ]
+publicDir = "artifacts/teleprompter/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22553"
+BASE_PATH = "/"
