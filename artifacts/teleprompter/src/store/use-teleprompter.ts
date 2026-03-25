@@ -33,7 +33,7 @@ interface TeleprompterState {
 const DEFAULT_CHAPTERS: Chapter[] = [
   {
     id: 'ch-1',
-    title: '开场白',
+    title: 'Introduction',
     text: `Welcome to your professional teleprompter.
 
 This tool is designed to help you maintain eye contact with the camera while delivering your speech smoothly.
@@ -42,14 +42,14 @@ To get started, replace this text with your own script.`,
   },
   {
     id: 'ch-2',
-    title: '主要内容',
+    title: 'Main Content',
     text: `You can adjust the speed, font size, and colors using the controls on the right.
 
 If you are using a physical teleprompter glass, make sure to enable "Mirror Mode" so the text reflects correctly.`,
   },
   {
     id: 'ch-3',
-    title: '结束语',
+    title: 'Closing',
     text: `During playback:
 • Press SPACE to play or pause
 • Press UP/DOWN arrows to adjust speed
@@ -72,7 +72,7 @@ export const useTeleprompter = create<TeleprompterState>()(
       addChapter: () => {
         const newChapter: Chapter = {
           id: generateId(),
-          title: `章节 ${get().chapters.length + 1}`,
+          title: `Section ${get().chapters.length + 1}`,
           text: '',
         };
         set(state => ({

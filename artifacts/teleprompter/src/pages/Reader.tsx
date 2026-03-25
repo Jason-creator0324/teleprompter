@@ -27,6 +27,10 @@ export default function Reader() {
   const mouseTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const chapterRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+  // Use a ref to always have the latest isPlaying value inside rAF
+  const isPlayingRef = useRef(isPlaying);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
+
   const handleExit = useCallback(() => {
     setIsPlaying(false);
     setLocation('/');
@@ -41,29 +45,30 @@ export default function Reader() {
     }
   }, []);
 
+  // Instant jump — works even while playing because we just set scrollTop directly.
+  // The rAF loop reads the new scrollTop on the very next frame and continues from there.
   const jumpToChapter = useCallback((idx: number) => {
     const el = chapterRefs.current[idx];
-    if (el && containerRef.current) {
-      const containerTop = containerRef.current.getBoundingClientRect().top;
-      const elTop = el.getBoundingClientRect().top;
-      const offset = elTop - containerTop + containerRef.current.scrollTop;
-      containerRef.current.scrollTo({ top: offset, behavior: 'smooth' });
-      setActiveChapterIdx(idx);
-      setIsFinished(false);
-    }
+    if (!el || !containerRef.current) return;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    // Calculate position relative to the container's scroll
+    const targetScrollTop = containerRef.current.scrollTop + (elRect.top - containerRect.top);
+    containerRef.current.scrollTop = targetScrollTop;
+    setActiveChapterIdx(idx);
+    setIsFinished(false);
   }, []);
 
-  // Animate scroll
+  // Smooth scrolling via rAF
   const animate = useCallback((time: number) => {
-    if (previousTimeRef.current !== undefined && isPlaying && containerRef.current) {
+    if (!containerRef.current) return;
+    if (previousTimeRef.current !== undefined && isPlayingRef.current) {
       const deltaTime = time - previousTimeRef.current;
       const pixelsPerSecond = speed * 15;
-      const scrollAmount = pixelsPerSecond * (deltaTime / 1000);
-      containerRef.current.scrollTop += scrollAmount;
+      containerRef.current.scrollTop += pixelsPerSecond * (deltaTime / 1000);
 
       const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
       const maxScroll = scrollHeight - clientHeight;
-
       if (maxScroll > 0) {
         setProgress(Math.min(100, (scrollTop / maxScroll) * 100));
         if (scrollTop >= maxScroll - 1) {
@@ -73,22 +78,22 @@ export default function Reader() {
       }
     }
     previousTimeRef.current = time;
-    if (isPlaying) {
+    if (isPlayingRef.current) {
       requestRef.current = requestAnimationFrame(animate);
     }
-  }, [isPlaying, speed]);
+  }, [speed]);
 
   useEffect(() => {
     if (isPlaying) {
       requestRef.current = requestAnimationFrame(animate);
-    } else if (requestRef.current) {
-      cancelAnimationFrame(requestRef.current);
+    } else {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
       previousTimeRef.current = undefined;
     }
     return () => { if (requestRef.current) cancelAnimationFrame(requestRef.current); };
   }, [isPlaying, animate]);
 
-  // Track active chapter based on scroll position
+  // Track active chapter based on scroll
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
@@ -97,16 +102,12 @@ export default function Reader() {
       setProgress((scrollTop / maxScroll) * 100);
       if (scrollTop < maxScroll - 10) setIsFinished(false);
     }
-
-    // Determine which chapter is currently in view
-    const containerTop = containerRef.current.getBoundingClientRect().top;
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const threshold = containerRect.top + clientHeight * 0.4;
     let currentIdx = 0;
     chapterRefs.current.forEach((el, idx) => {
-      if (el) {
-        const elTop = el.getBoundingClientRect().top - containerTop;
-        if (elTop <= clientHeight * 0.4) {
-          currentIdx = idx;
-        }
+      if (el && el.getBoundingClientRect().top <= threshold) {
+        currentIdx = idx;
       }
     });
     setActiveChapterIdx(currentIdx);
@@ -133,13 +134,13 @@ export default function Reader() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPlaying, isFinished, speed, setSpeed, handleExit, handleReset]);
 
-  // Mouse idle — hide controls
+  // Mouse idle — auto-hide bottom controls only, chapter panel stays
   useEffect(() => {
     const handleMouseMove = () => {
       setShowControls(true);
       if (mouseTimeoutRef.current) clearTimeout(mouseTimeoutRef.current);
       mouseTimeoutRef.current = setTimeout(() => {
-        if (isPlaying) setShowControls(false);
+        if (isPlayingRef.current) setShowControls(false);
       }, 2500);
     };
     window.addEventListener('mousemove', handleMouseMove);
@@ -147,7 +148,7 @@ export default function Reader() {
       window.removeEventListener('mousemove', handleMouseMove);
       if (mouseTimeoutRef.current) clearTimeout(mouseTimeoutRef.current);
     };
-  }, [isPlaying]);
+  }, []);
 
   return (
     <div className="fixed inset-0 w-full h-full flex" style={{ backgroundColor: bgColor }}>
@@ -167,29 +168,24 @@ export default function Reader() {
               key={chapter.id}
               ref={el => { chapterRefs.current[idx] = el; }}
             >
-              {/* Chapter Divider */}
+              {/* Section divider */}
               <div className="flex items-center gap-4 mb-8 mt-2">
-                {idx > 0 && <div className="flex-1 h-px opacity-20" style={{ backgroundColor: textColor }} />}
+                <div className="flex-1 h-px opacity-20" style={{ backgroundColor: textColor }} />
                 <span
                   className="text-xs font-bold uppercase tracking-[0.2em] px-3 py-1 rounded-full border opacity-40"
                   style={{ color: textColor, borderColor: textColor }}
                 >
                   {chapter.title}
                 </span>
-                {idx > 0 && <div className="flex-1 h-px opacity-20" style={{ backgroundColor: textColor }} />}
-                {idx === 0 && <div className="flex-1 h-px opacity-20" style={{ backgroundColor: textColor }} />}
+                <div className="flex-1 h-px opacity-20" style={{ backgroundColor: textColor }} />
               </div>
 
-              {/* Chapter Text */}
+              {/* Section text */}
               {chapter.text.split('\n').filter(p => p.trim() !== '').map((p, i) => (
                 <p
                   key={i}
                   className="mb-8 font-sans font-bold tracking-tight text-center"
-                  style={{
-                    fontSize: `${fontSize}px`,
-                    lineHeight,
-                    color: textColor,
-                  }}
+                  style={{ fontSize: `${fontSize}px`, lineHeight, color: textColor }}
                 >
                   {p}
                 </p>
@@ -200,7 +196,7 @@ export default function Reader() {
                   className="mb-8 text-center opacity-30 italic"
                   style={{ fontSize: `${Math.max(fontSize * 0.5, 24)}px`, color: textColor }}
                 >
-                  （此章节为空）
+                  (This section is empty)
                 </p>
               )}
             </div>
@@ -217,7 +213,7 @@ export default function Reader() {
                   className="inline-block px-8 py-4 rounded-3xl border-2"
                   style={{ borderColor: textColor, color: textColor }}
                 >
-                  <span className="text-2xl uppercase tracking-widest font-bold opacity-50">演讲结束</span>
+                  <span className="text-2xl uppercase tracking-widest font-bold opacity-50">End of Script</span>
                 </div>
               </motion.div>
             )}
@@ -225,7 +221,7 @@ export default function Reader() {
         </div>
       </div>
 
-      {/* Chapter Navigator (right side) */}
+      {/* Chapter Navigator — always visible, clicking works even while playing */}
       <AnimatePresence>
         {showChapters && (
           <motion.div
@@ -240,7 +236,7 @@ export default function Reader() {
               className="text-[10px] font-bold uppercase tracking-widest mb-1 px-2"
               style={{ color: textColor, opacity: 0.4 }}
             >
-              章节跳转
+              Jump to Section
             </div>
             {chapters.map((chapter, idx) => {
               const isActive = idx === activeChapterIdx;
@@ -254,8 +250,10 @@ export default function Reader() {
                     border: `1px solid ${isActive ? 'rgba(59,130,246,0.6)' : 'rgba(255,255,255,0.08)'}`,
                   }}
                 >
-                  {isActive && <ChevronRight className="w-3 h-3 shrink-0" style={{ color: '#3b82f6' }} />}
-                  {!isActive && <span className="w-3 h-3 shrink-0 text-center text-[10px] font-mono" style={{ color: textColor, opacity: 0.4 }}>{idx + 1}</span>}
+                  {isActive
+                    ? <ChevronRight className="w-3 h-3 shrink-0" style={{ color: '#3b82f6' }} />
+                    : <span className="w-3 h-3 shrink-0 text-center text-[10px] font-mono" style={{ color: textColor, opacity: 0.4 }}>{idx + 1}</span>
+                  }
                   <span
                     className="text-xs font-semibold truncate leading-tight"
                     style={{ color: textColor, opacity: isActive ? 1 : 0.6 }}
@@ -269,17 +267,17 @@ export default function Reader() {
         )}
       </AnimatePresence>
 
-      {/* Toggle chapter panel button */}
+      {/* Toggle chapter panel */}
       <button
         onClick={() => setShowChapters(v => !v)}
         className="fixed right-0 top-1/2 -translate-y-1/2 z-50 w-6 h-14 flex items-center justify-center rounded-l-lg transition-all"
         style={{ backgroundColor: 'rgba(0,0,0,0.5)', color: textColor, opacity: 0.5 }}
-        title={showChapters ? '隐藏章节' : '显示章节'}
+        title={showChapters ? 'Hide sections' : 'Show sections'}
       >
         <BookOpen className="w-3 h-3" />
       </button>
 
-      {/* Playback Controls (bottom) */}
+      {/* Bottom Controls */}
       <AnimatePresence>
         {showControls && (
           <motion.div
@@ -289,10 +287,9 @@ export default function Reader() {
             transition={{ duration: 0.3 }}
             className="fixed bottom-8 left-1/2 -translate-x-1/2 glass-panel rounded-full px-6 py-4 flex items-center gap-6 z-50"
           >
-            {/* Size & Speed */}
             <div className="flex items-center gap-3 pr-6 border-r border-white/10">
               <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">大小</span>
+                <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">Size</span>
                 <div className="flex items-center gap-1 bg-white/5 rounded-full p-1 border border-white/10">
                   <button onClick={() => setFontSize(fontSize - 4)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 text-white transition-colors">
                     <Minus className="w-4 h-4" />
@@ -305,7 +302,7 @@ export default function Reader() {
               </div>
 
               <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">速度</span>
+                <span className="text-[10px] uppercase font-bold text-white/50 tracking-wider">Speed</span>
                 <div className="flex items-center gap-1 bg-white/5 rounded-full p-1 border border-white/10">
                   <button onClick={() => setSpeed(speed - 1)} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 text-white transition-colors">
                     <Minus className="w-4 h-4" />
@@ -318,12 +315,11 @@ export default function Reader() {
               </div>
             </div>
 
-            {/* Playback */}
             <div className="flex items-center gap-4">
               <button
                 onClick={handleReset}
                 className="w-12 h-12 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
-                title="回到开头"
+                title="Restart"
               >
                 <RotateCcw className="w-5 h-5" />
               </button>
@@ -338,7 +334,7 @@ export default function Reader() {
               <button
                 onClick={handleExit}
                 className="w-12 h-12 rounded-full flex items-center justify-center text-white/70 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-                title="退出 (Esc)"
+                title="Exit (Esc)"
               >
                 <X className="w-6 h-6" />
               </button>
