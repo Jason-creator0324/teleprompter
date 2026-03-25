@@ -33,22 +33,13 @@ const DEFAULT_CHAPTERS: Chapter[] = [
   {
     id: 'ch-1',
     title: 'Instructions',
-    text: `Welcome to your professional teleprompter.
-
-This tool is designed to help you maintain eye contact with the camera while delivering your speech smoothly.
-
-To get started, replace this text with your own script.
-
-You can adjust the speed, font size, and colors using the Settings panel on the right. You can also add, revise, and navigate between sections during your speech.
-
-If you are using a physical teleprompter glass, make sure to enable "Mirror Mode" so the text displays correctly.
-
-During playback:
-• Press SPACE to play or pause
-• Press the UP/DOWN arrow keys to adjust speed
-• Press ESC to return to the editor
-
-Good luck with your presentation!`,
+    text: `<p>Welcome to your professional teleprompter.</p>
+<p>This tool is designed to help you maintain eye contact with the camera while delivering your speech smoothly.</p>
+<p>To get started, replace this text with your own script.</p>
+<p>You can adjust the speed, font size, and colors using the Settings panel on the right. You can also add, revise, and navigate between sections during your speech.</p>
+<p>If you are using a physical teleprompter glass, make sure to enable "Mirror Mode" so the text displays correctly.</p>
+<p>During playback:<br>• Press SPACE to play or pause<br>• Press the UP/DOWN arrow keys to adjust speed<br>• Press ESC to return to the editor</p>
+<p>Good luck with your presentation!</p>`,
   },
 ];
 

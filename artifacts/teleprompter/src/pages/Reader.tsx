@@ -180,24 +180,20 @@ export default function Reader() {
                 <div className="flex-1 h-px opacity-20" style={{ backgroundColor: textColor }} />
               </div>
 
-              {/* Section text */}
-              {chapter.text.split('\n').filter(p => p.trim() !== '').map((p, i) => (
-                <p
-                  key={i}
-                  className="mb-8 font-sans font-bold tracking-tight text-center"
-                  style={{ fontSize: `${fontSize}px`, lineHeight, color: textColor }}
-                >
-                  {p}
-                </p>
-              ))}
-
-              {chapter.text.trim() === '' && (
+              {/* Section text — rendered as HTML to support tables and images */}
+              {chapter.text.replace(/<[^>]*>/g, '').trim() === '' ? (
                 <p
                   className="mb-8 text-center opacity-30 italic"
                   style={{ fontSize: `${Math.max(fontSize * 0.5, 24)}px`, color: textColor }}
                 >
                   (This section is empty)
                 </p>
+              ) : (
+                <div
+                  className="reader-content mb-8 font-sans font-bold tracking-tight text-center"
+                  style={{ fontSize: `${fontSize}px`, lineHeight, color: textColor }}
+                  dangerouslySetInnerHTML={{ __html: chapter.text }}
+                />
               )}
             </div>
           ))}

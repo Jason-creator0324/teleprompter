@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTeleprompter } from '@/store/use-teleprompter';
 import { Link } from 'wouter';
 import {
@@ -31,11 +31,69 @@ export default function Editor() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const activeChapterIdRef = useRef(activeChapterId);
 
   const activeChapter = chapters.find(c => c.id === activeChapterId) ?? chapters[0];
+
+  // Strip HTML tags for word count
+  const stripHtml = (html: string) => html.replace(/<[^>]*>/g, ' ');
   const totalWords = chapters.reduce((sum, c) => {
-    return sum + c.text.split(/\s+/).filter(w => w.length > 0).length;
+    return sum + stripHtml(c.text).split(/\s+/).filter(w => w.length > 0).length;
   }, 0);
+  const activeWordCount = stripHtml(activeChapter?.text ?? '').split(/\s+/).filter(w => w.length > 0).length;
+
+  // Sync editor DOM when chapter changes
+  useEffect(() => {
+    if (!editorRef.current) return;
+    editorRef.current.innerHTML = activeChapter?.text ?? '';
+    activeChapterIdRef.current = activeChapterId;
+  }, [activeChapterId]); // eslint-disable-line
+
+  // Read innerHTML back to store on every input
+  const handleInput = useCallback(() => {
+    if (editorRef.current) {
+      updateChapter(activeChapterId, { text: editorRef.current.innerHTML });
+    }
+  }, [activeChapterId, updateChapter]);
+
+  // Handle paste: intercept images and convert to base64 data URLs
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = Array.from(e.clipboardData.items);
+    const imageItem = items.find(item => item.type.startsWith('image/'));
+    if (imageItem) {
+      e.preventDefault();
+      const blob = imageItem.getAsFile();
+      if (!blob) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        // Insert image at cursor
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.style.maxWidth = '100%';
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          range.deleteContents();
+          range.insertNode(img);
+          range.setStartAfter(img);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        } else if (editorRef.current) {
+          editorRef.current.appendChild(img);
+        }
+        handleInput();
+      };
+      reader.readAsDataURL(blob);
+    }
+    // For HTML (tables etc.) and plain text — let the browser handle it natively
+    // then capture the result
+    else {
+      setTimeout(handleInput, 0);
+    }
+  }, [handleInput]);
 
   const startEditing = (id: string, title: string) => {
     setEditingId(id);
@@ -88,7 +146,7 @@ export default function Editor() {
             {activeChapter?.title ?? ''}
           </span>
           <span className="text-xs text-muted-foreground ml-auto">
-            {activeChapter?.text.split(/\s+/).filter(w => w.length > 0).length ?? 0} words
+            {activeWordCount} words
           </span>
         </div>
 
@@ -99,14 +157,17 @@ export default function Editor() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
-            className="w-full h-full"
+            className="w-full h-full overflow-y-auto"
           >
-            <textarea
-              value={activeChapter?.text ?? ''}
-              onChange={(e) => updateChapter(activeChapterId, { text: e.target.value })}
-              placeholder="Type or paste this section's script here..."
-              className="w-full h-full bg-transparent resize-none outline-none text-foreground/90 placeholder:text-muted-foreground/40 font-sans leading-relaxed text-lg md:text-xl p-4 rounded-xl border border-transparent focus:border-border/50 focus:bg-card/30 transition-colors duration-300"
-              spellCheck="false"
+            <div
+              ref={editorRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={handleInput}
+              onPaste={handlePaste}
+              data-placeholder="Type or paste your script here — text, tables, and images are all supported..."
+              className="rich-editor min-h-full outline-none text-foreground/90 font-sans leading-relaxed text-lg p-4 rounded-xl border border-transparent focus:border-border/50 focus:bg-card/30 transition-colors duration-300"
+              spellCheck={false}
             />
           </motion.div>
         </div>
