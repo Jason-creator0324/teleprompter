@@ -64,9 +64,7 @@ export default function Editor() {
             <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/30">
               <Video className="w-4 h-4 text-primary" />
             </div>
-            <h1 className="font-bold text-lg tracking-tight">
-              Teleprompter<span className="text-primary">Pro</span>
-            </h1>
+            <h1 className="font-bold text-lg tracking-tight">Teleprompter</h1>
           </div>
 
           <div className="flex items-center gap-4">
